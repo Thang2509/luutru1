@@ -1,97 +1,65 @@
-CREATE TABLE HOCVIEN (
-    MAHV CHAR(8) PRIMARY KEY,
-    HOTEN NVARCHAR(50),
-    GIOITINH NVARCHAR(10),
-    NGAYSINH DATETIME,
-    NOISINH NVARCHAR(100),
-    MALOP CHAR(6),
-    FOREIGN KEY (MALOP) REFERENCES LOP(MALOP)
-); CREATE TABLE HOCPHAN (
-    MAHP CHAR(5) PRIMARY KEY,
-    TENHP NVARCHAR(50),
-    SOTC SMALLINT
-); CREATE TABLE KETQUA (
-    MAHV CHAR(8),
-    MAHP CHAR(5),
-    NamHoc CHAR(9),
-    HocKy SMALLINT,
-    DIEMTKHP DECIMAL(3,2),
-    PRIMARY KEY (MAHV, MAHP, NamHoc, HocKy),
-    FOREIGN KEY (MAHV) REFERENCES HOCVIEN(MAHV),
-    FOREIGN KEY (MAHP) REFERENCES HOCPHAN(MAHP)
-);
-CREATE TABLE LOP (
-    MALOP CHAR(6) PRIMARY KEY,
-    TENLOP NVARCHAR(30),
-    MACN CHAR(8),
-    KHOAHOC CHAR(4),
-    FOREIGN KEY (MACN) REFERENCES CHUYENNGANH(MACN)
-); CREATE TABLE CHUYENNGANH (
-    MACN CHAR(8) PRIMARY KEY,
-    TENCN NVARCHAR(30),
-    MAKHOA CHAR(4),
-    FOREIGN KEY (MAKHOA) REFERENCES KHOA(MAKHOA)
-); CREATE TABLE KHOA (
-    MAKHOA CHAR(4) PRIMARY KEY,
-    TENKHOA NVARCHAR(30)
-);
+public void AStarSearch()
+{
+    while (!OPEN.isEmty())
+    {
+        Element Tmax = OPEN.deQueue();
 
-CREATE TRIGGER TRG_KT_DIEM
-ON KETQUA
-FOR INSERT, UPDATE
-AS
-BEGIN
-    IF EXISTS (
-        SELECT * FROM inserted
-        WHERE DIEMTKHP < 0 OR DIEMTKHP > 10
-    )
-    BEGIN
-        RAISERROR(N'Điểm phải từ 0 đến 10',16,1);
-        ROLLBACK TRANSACTION;
-    END
-END;
+        // nếu đã có đường tốt hơn thì bỏ
+        if (CLOSE[Tmax.Tendinh] != null && Tmax.G > CLOSE[Tmax.Tendinh].G)
+            continue;
 
-CREATE TRIGGER TRG_KT_TUOI
-ON HOCVIEN
-FOR INSERT, UPDATE
-AS
-BEGIN
-    IF EXISTS (
-        SELECT * FROM inserted
-        WHERE DATEDIFF(YEAR, NGAYSINH, GETDATE()) < 22
-    )
-    BEGIN
-        RAISERROR(N'Học viên phải từ 22 tuổi trở lên',16,1);
-        ROLLBACK TRANSACTION;
-    END
-END;
+        CLOSE[Tmax.Tendinh] = Tmax;
 
-CREATE TRIGGER TRG_KT_SOTC
-ON HOCPHAN
-FOR INSERT, UPDATE
-AS
-BEGIN
-    IF EXISTS (
-        SELECT * FROM inserted
-        WHERE SOTC <= 0
-    )
-    BEGIN
-        RAISERROR(N'Số tín chỉ phải > 0',16,1);
-        ROLLBACK TRANSACTION;
-    END
-END;
+        if (Tmax.Tendinh == dt.Goal)
+        {
+            Console.WriteLine("Tim duoc duong di...");
+            return;
+        }
+        else
+        {
+            for (int tk = 0; tk < dt.SoDinh; tk++)
+            {
+                if (dt.Matrix[Tmax.Tendinh, tk] <= 0)
+                    continue;
 
-CREATE TRIGGER TRG_KHONG_SUA_MAHV
-ON HOCVIEN
-FOR UPDATE
-AS
-BEGIN
-    IF UPDATE(MAHV)
-    BEGIN
-        RAISERROR(N'Không được phép sửa MAHV',16,1);
-        ROLLBACK TRANSACTION;
-    END
-END;
+                int tk_g = Tmax.G + dt.Matrix[Tmax.Tendinh, tk];
 
+                // nếu CLOSE có đường tốt hơn thì bỏ
+                if (CLOSE[tk] != null && tk_g >= CLOSE[tk].G)
+                    continue;
 
+                double tk_h = dt.DsPoint[tk].h(dt.DsPoint[dt.Goal]);
+                double tk_f = tk_g + tk_h;
 
+                bool foundInOpen = false;
+
+                // 🔥 kiểm tra OPEN trực tiếp
+                for (int i = 0; i < OPEN.noItems; i++)
+                {
+                    if (OPEN.arr[i].Tendinh == tk)
+                    {
+                        foundInOpen = true;
+
+                        // nếu tìm được đường tốt hơn thì update
+                        if (tk_g < OPEN.arr[i].G)
+                        {
+                            OPEN.arr[i].G = tk_g;
+                            OPEN.arr[i].F = tk_f;
+                            OPEN.arr[i].Pre = Tmax.Tendinh;
+                        }
+                        break;
+                    }
+                }
+
+                // nếu chưa có trong OPEN thì thêm
+                if (!foundInOpen)
+                {
+                    Element TkElmt = new Element(tk, tk_g, tk_f, Tmax.Tendinh);
+                    OPEN.enQueue(TkElmt);
+                }
+            }
+        }
+    }
+
+    Console.WriteLine("Khong tim duoc duong di");
+}
